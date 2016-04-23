@@ -30,6 +30,8 @@ struct queueItem{
 seat nextSeat;
 queueItem tag;
 queue<queueItem> boxQueue;
+int total_num_of_passenger;
+int current_num_of_passenger;
 bool coach_is_here = false;
 
 pthread_mutex_t mutexNextSeat = PTHREAD_MUTEX_INITIALIZER;
@@ -51,7 +53,7 @@ queueItem dequeue();
 void *passengers(void *passengerId){
 
     //cout << "Passenger " << *(int *)passengerId << " created\n";
-    sleep(rand() % 600 + 1);        // wait 0 to 10 minutes
+    //sleep(rand() % 600 + 1);        // wait 0 to 10 minutes
     //cout << "Passenger " << *(int *)passengerId << " arrived\n";
 
     int position[2] = {0};
@@ -98,9 +100,9 @@ void *driver(void *driverid){
     cout << "Coach departs at time "<< difftime(now, starting_time) << endl;
     char luggage[NUM_ROW][NUM_COL];     // luggage record sheet
 
-    // bool done;
+    bool done;
 
-    // while(!done) {
+    while(!done) {
 
         // driver dequeue and store the data to luggage[][]
         // i.e. driver marking the luggage record record sheet according to the tags in order
@@ -141,7 +143,13 @@ void *driver(void *driverid){
             cout << "s";
         }
         cout << " carry luggage.\n";
-    // }
+
+        current_num_of_passenger -= 36;
+
+        if(current_num_of_passenger <= 0){
+            done = true;
+        }
+    }
 
     cout << "Driver exiting\n";
     pthread_exit(NULL);
@@ -208,20 +216,21 @@ int main(int argc, char* argv[]){
     sem_init(&reset, 0, 0);
 
     int rc, i;
-    const int num_of_passenger = atoi(argv[1]);
-    //cout << "Number of passenger: " << num_of_passenger << endl;
+    total_num_of_passenger = atoi(argv[1]);
+    //cout << "Number of passenger: " << total_num_of_passenger << endl;
+    current_num_of_passenger = total_num_of_passenger;
 
-    pthread_t passenger[num_of_passenger];
+    pthread_t passenger[total_num_of_passenger];
     pthread_t driver_thread;
 
-    int passengerThreadId[num_of_passenger];
+    int passengerThreadId[total_num_of_passenger];
 
     nextSeat.row = 1;
     nextSeat.col = 1;
 
     srand(time(NULL));                  // seed for a new psedorandom integer
 
-    for(i=0; i<num_of_passenger; i++){
+    for(i=0; i<total_num_of_passenger; i++){
 
         passengerThreadId[i] = i;
         //cout << "Passenger thread ID: " << passengerThreadId[i] << endl;
@@ -243,7 +252,7 @@ int main(int argc, char* argv[]){
 
     // master thread waiting for each worker-thread
     // i.e. driver waiting each passenger to submit his/her luggage record sheet
-    for(i=0; i<num_of_passenger; i++){
+    for(i=0; i<total_num_of_passenger; i++){
 
         rc = pthread_join(passenger[i], NULL);
 
