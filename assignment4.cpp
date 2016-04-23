@@ -38,6 +38,9 @@ pthread_mutex_t mutexBox = PTHREAD_MUTEX_INITIALIZER;
 sem_t full;
 sem_t reset;
 
+// current date/time based on current system
+time_t starting_time;
+
 // Function prototypes
 void *passengers();
 void automatic_ticketing_machine(int[]);
@@ -48,7 +51,7 @@ queueItem dequeue();
 void *passengers(void *passengerId){
 
     //cout << "Passenger " << *(int *)passengerId << " created\n";
-    //sleep(rand() % 600 + 1);        // wait 0 to 10 minutes
+    sleep(rand() % 600 + 1);        // wait 0 to 10 minutes
     //cout << "Passenger " << *(int *)passengerId << " arrived\n";
 
     int position[2] = {0};
@@ -85,8 +88,14 @@ void *driver(void *driverid){
     cout << "Driver created\n";
     coach_is_here = true;
 
+    starting_time = time(0);
+
+    time_t now = time(0);
+    cout << "Coach arrives at time "<< difftime(now, starting_time) << endl;
     sem_wait(&full);
 
+    now = time(0);
+    cout << "Coach departs at time "<< difftime(now, starting_time) << endl;
     char luggage[NUM_ROW][NUM_COL];     // luggage record sheet
 
     // bool done;
