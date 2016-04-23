@@ -6,6 +6,8 @@
 #include <pthread.h>
 #include <cstdlib>
 #include <queue>
+#include <ctime>
+#include <semaphore.h>
 
 using namespace std;
 
@@ -28,9 +30,13 @@ struct queueItem{
 seat nextSeat;
 queueItem tag;
 queue<queueItem> boxQueue;
+bool coach_is_here = false;
 
 pthread_mutex_t mutexNextSeat = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutexBox = PTHREAD_MUTEX_INITIALIZER;
+
+sem_t full;
+sem_t reset;
 
 // Function prototypes
 void *passengers();
@@ -42,13 +48,17 @@ queueItem dequeue();
 void *passengers(void *passengerId){
 
     //cout << "Passenger " << *(int *)passengerId << " created\n";
-    sleep(rand() % 120 + 1);        // wait 0 to 2 minutes
+    //sleep(rand() % 600 + 1);        // wait 0 to 10 minutes
     //cout << "Passenger " << *(int *)passengerId << " arrived\n";
 
     int position[2] = {0};
     automatic_ticketing_machine(position);
 
     //cout << "Passenger " <<*(int *)passengerId  << " Seat No.:(" << position[0] << ", " << position[1] << ")\n";
+
+    do{
+
+    } while(!coach_is_here);
 
     sleep(rand() % 60 + 1);         // wait 0 to 1 minute
 
@@ -63,6 +73,68 @@ void *passengers(void *passengerId){
 
     enqueue(tag);
 
+    if(boxQueue.size() == 36){
+        sem_post(&full);
+    }
+
+    pthread_exit(NULL);
+}
+
+void *driver(void *driverid){
+
+    cout << "Driver created\n";
+    coach_is_here = true;
+
+    sem_wait(&full);
+
+    char luggage[NUM_ROW][NUM_COL];     // luggage record sheet
+
+    // bool done;
+
+    // while(!done) {
+
+        // driver dequeue and store the data to luggage[][]
+        // i.e. driver marking the luggage record record sheet according to the tags in order
+        for(int i=0; i<36; i++){
+            tag = dequeue();
+            luggage[tag.row-1][tag.col-1] = tag.luggage;
+            //cout << "  [" << tag.row-1 << "]" << "[" << tag.col-1 << "] = " << tag.luggage << endl;
+            //cout << "  i = " << i << endl;;
+        }
+
+        // marking empty seats
+        for(int i=nextSeat.row-1; i<NUM_ROW; i++){
+            for (int j=nextSeat.col-1; j<NUM_COL; j++) {
+                //cout << "i = " << i << " j = " << j << endl;
+                luggage[i][j] = 'E';
+
+            }
+            nextSeat.col = 1;
+        }
+
+        int num_of_luggage = 0;
+
+        // display the luggage record sheet
+        for(int i=0; i<NUM_ROW; i++){
+            for(int j=0; j<NUM_COL; j++){
+                cout << luggage[i][j];
+                // count how many passengers carry luggage
+                if (luggage[i][j] == 'Y'){
+                    num_of_luggage++;
+                }
+            }
+            cout << endl;
+        }
+
+        cout << num_of_luggage << " passenger";
+        // singular or plural
+        if(num_of_luggage > 1){
+            cout << "s";
+        }
+        cout << " carry luggage.\n";
+    // }
+
+    cout << "Driver exiting\n";
     pthread_exit(NULL);
 }
 
@@ -123,12 +195,16 @@ queueItem dequeue(){
 
 int main(int argc, char* argv[]){
 
-    int rc, i, j;
+    sem_init(&full, 0, 0);
+    sem_init(&reset, 0, 0);
+
+    int rc, i;
     const int num_of_passenger = atoi(argv[1]);
     //cout << "Number of passenger: " << num_of_passenger << endl;
 
     pthread_t passenger[num_of_passenger];
-    char luggage[NUM_ROW][NUM_COL];     // luggage record sheet
+    pthread_t driver_thread;
+
     int passengerThreadId[num_of_passenger];
 
     nextSeat.row = 1;
@@ -149,9 +225,16 @@ int main(int argc, char* argv[]){
 
     }
 
+    rc = pthread_create(&driver_thread, NULL, driver, (void *)1);
+
+    if(rc){
+        cout << "Error: unable to create thread\n";
+        exit(-1);
+    }
+
     // master thread waiting for each worker-thread
     // i.e. driver waiting each passenger to submit his/her luggage record sheet
-    for(int i=0; i<num_of_passenger; i++){
+    for(i=0; i<num_of_passenger; i++){
 
         rc = pthread_join(passenger[i], NULL);
 
@@ -161,45 +244,15 @@ int main(int argc, char* argv[]){
         }
     }
 
-    // master thread dequeue and store the data to luggage[][]
-    // i.e. driver marking the luggage record record sheet according to the tags in order
-    for(int i=0; i<num_of_passenger; i++){
-        tag = dequeue();
-        luggage[tag.row-1][tag.col-1] = tag.luggage;
-        //cout << "  [" << tag.row-1 << "]" << "[" << tag.col-1 << "] = " << tag.luggage << endl;
-        //cout << "  i = " << i << endl;;
+    rc = pthread_join(driver_thread, NULL);
+
+    if(rc){
+        cout << "Error: unable to join, " << rc << endl;
+        exit(-1);
     }
 
-    // marking empty seats
-    for(i=nextSeat.row-1; i<NUM_ROW; i++){
-        for (j=nextSeat.col-1; j<NUM_COL; j++) {
-            //cout << "i = " << i << " j = " << j << endl;
-            luggage[i][j] = 'E';
-
-        }
-        nextSeat.col = 1;
-    }
-
-    int num_of_luggage = 0;
-
-    // display the luggage record sheet
-    for(i=0; i<NUM_ROW; i++){
-        for(j=0; j<NUM_COL; j++){
-            cout << luggage[i][j];
-            // count how many passengers carry luggage
-            if (luggage[i][j] == 'Y'){
-                num_of_luggage++;
-            }
-        }
-        cout << endl;
-    }
-
-    cout << num_of_luggage << " passenger";
-    // singular or plural
-    if(num_of_luggage > 1){
-        cout << "s";
-    }
-    cout << " carry luggage.\n";
+    sem_destroy(&full);
+    sem_destroy(&reset);
 
     // cout << "main(): program exiting" << endl;
     pthread_exit(NULL);
