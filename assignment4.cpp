@@ -52,14 +52,14 @@ queueItem dequeue();
 // passenger thread
 void *passengers(void *passengerId){
 
-    //cout << "Passenger " << *(int *)passengerId << " created\n";
-    //sleep(rand() % 600 + 1);        // wait 0 to 10 minutes
-    //cout << "Passenger " << *(int *)passengerId << " arrived\n";
+    cout << "Passenger " << *(int *)passengerId << " created\n";
+    sleep(rand() % 600 + 1);        // wait 0 to 10 minutes
+    cout << "Passenger " << *(int *)passengerId << " arrived\n";
 
     int position[2] = {0};
     automatic_ticketing_machine(position);
 
-    //cout << "Passenger " <<*(int *)passengerId  << " Seat No.:(" << position[0] << ", " << position[1] << ")\n";
+    cout << "Passenger " <<*(int *)passengerId  << " Seat No.:(" << position[0] << ", " << position[1] << ")\n";
 
     do{
 
@@ -67,7 +67,7 @@ void *passengers(void *passengerId){
 
     sleep(rand() % 60 + 1);         // wait 0 to 1 minute
 
-    //cout << "Passenger " <<*(int *)passengerId  << " got on the coach\n";
+    cout << "Passenger " <<*(int *)passengerId  << " got on the coach\n";
 
     queueItem tag;
 
@@ -88,21 +88,25 @@ void *passengers(void *passengerId){
 void *driver(void *driverid){
 
     cout << "Driver created\n";
-    coach_is_here = true;
 
     starting_time = time(0);
 
-    time_t now = time(0);
-    cout << "Coach arrives at time "<< difftime(now, starting_time) << endl;
-    sem_wait(&full);
+    bool done = false;
 
-    now = time(0);
-    cout << "Coach departs at time "<< difftime(now, starting_time) << endl;
-    char luggage[NUM_ROW][NUM_COL];     // luggage record sheet
+    while (!done){
 
-    bool done;
+        time_t now = time(0);
+        cout << "Coach arrives at time "<< difftime(now, starting_time) << endl;
 
-    while(!done) {
+        coach_is_here = true;
+
+        sem_wait(&full);
+
+        coach_is_here = false;
+
+        now = time(0);
+        cout << "Coach departs at time "<< difftime(now, starting_time) << endl;
+        char luggage[NUM_ROW][NUM_COL];     // luggage record sheet
 
         // driver dequeue and store the data to luggage[][]
         // i.e. driver marking the luggage record record sheet according to the tags in order
@@ -111,16 +115,6 @@ void *driver(void *driverid){
             luggage[tag.row-1][tag.col-1] = tag.luggage;
             //cout << "  [" << tag.row-1 << "]" << "[" << tag.col-1 << "] = " << tag.luggage << endl;
             //cout << "  i = " << i << endl;;
-        }
-
-        // marking empty seats
-        for(int i=nextSeat.row-1; i<NUM_ROW; i++){
-            for (int j=nextSeat.col-1; j<NUM_COL; j++) {
-                //cout << "i = " << i << " j = " << j << endl;
-                luggage[i][j] = 'E';
-
-            }
-            nextSeat.col = 1;
         }
 
         int num_of_luggage = 0;
@@ -142,12 +136,16 @@ void *driver(void *driverid){
         if(num_of_luggage > 1){
             cout << "s";
         }
-        cout << " carry luggage.\n";
+        cout << " carry luggage.\n\n";
 
         current_num_of_passenger -= 36;
 
         if(current_num_of_passenger <= 0){
             done = true;
+        } else {
+            sleep(600);
+            sem_post(&reset);
+
         }
     }
 
@@ -159,6 +157,14 @@ void automatic_ticketing_machine(int position[2]){
 
     pthread_mutex_lock(&mutexNextSeat);
     //cout << "locked nextSeat\n";
+
+    if(nextSeat.row == 10 && nextSeat.col == 1){
+        sem_wait(&reset);
+        cout << "stop\n";
+        nextSeat.row = 1;
+        nextSeat.col = 1;
+    }
+
     sleep(1);
 
     position[0] = nextSeat.row;
