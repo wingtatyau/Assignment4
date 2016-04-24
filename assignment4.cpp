@@ -40,7 +40,7 @@ pthread_mutex_t mutexBox = PTHREAD_MUTEX_INITIALIZER;
 sem_t full;
 sem_t reset;
 
-// current date/time based on current system
+// starting date/time based on current system
 time_t starting_time;
 
 // Function prototypes
@@ -52,28 +52,27 @@ queueItem dequeue();
 // passenger thread
 void *passengers(void *passengerId){
 
-    cout << "Passenger " << *(int *)passengerId << " created\n";
+    //cout << "Passenger " << *(int *)passengerId << " created\n";
     sleep(rand() % 600 + 1);        // wait 0 to 10 minutes
-    cout << "Passenger " << *(int *)passengerId << " arrived\n";
+    //cout << "Passenger " << *(int *)passengerId << " arrived\n";
 
     int position[2] = {0};
     automatic_ticketing_machine(position);
 
-    cout << "Passenger " <<*(int *)passengerId  << " Seat No.:(" << position[0] << ", " << position[1] << ")\n";
+    //cout << "Passenger " <<*(int *)passengerId  << " Seat No.:(" << position[0] << ", " << position[1] << ")\n";
 
-    do{
-
-    } while(!coach_is_here);
+    // wait until coach arrive
+    while(!coach_is_here);
 
     sleep(rand() % 60 + 1);         // wait 0 to 1 minute
 
-    cout << "Passenger " <<*(int *)passengerId  << " got on the coach\n";
+    //cout << "Passenger " <<*(int *)passengerId  << " got on the coach\n";
 
     queueItem tag;
 
     tag.row = position[0];
     tag.col = position[1];
-    tag.luggage = (rand() % 101 <= 20) ? 'Y' : 'N';;
+    tag.luggage = (rand() % 101 <= 20) ? 'Y' : 'N';
     // 20% of the passengers carry a luggage (marking the sheet)
 
     enqueue(tag);
@@ -87,7 +86,7 @@ void *passengers(void *passengerId){
 
 void *driver(void *driverid){
 
-    cout << "Driver created\n";
+    //cout << "Driver created\n";
 
     starting_time = time(0);
 
@@ -100,6 +99,7 @@ void *driver(void *driverid){
 
         coach_is_here = true;
 
+        // driver wait until the coach is full
         sem_wait(&full);
 
         coach_is_here = false;
@@ -143,13 +143,13 @@ void *driver(void *driverid){
         if(current_num_of_passenger <= 0){
             done = true;
         } else {
-            sleep(600);
+            sleep(600);		// wait 10 minutes for the coach to come back
             sem_post(&reset);
 
         }
     }
 
-    cout << "Driver exiting\n";
+    //cout << "Driver exiting\n";
     pthread_exit(NULL);
 }
 
@@ -158,9 +158,9 @@ void automatic_ticketing_machine(int position[2]){
     pthread_mutex_lock(&mutexNextSeat);
     //cout << "locked nextSeat\n";
 
+    // if the seats are full, wait until the coach come back and then reset
     if(nextSeat.row == 10 && nextSeat.col == 1){
         sem_wait(&reset);
-        cout << "stop\n";
         nextSeat.row = 1;
         nextSeat.col = 1;
     }
@@ -256,8 +256,7 @@ int main(int argc, char* argv[]){
         exit(-1);
     }
 
-    // master thread waiting for each worker-thread
-    // i.e. driver waiting each passenger to submit his/her luggage record sheet
+    // master thread waiting for each passenger thread
     for(i=0; i<total_num_of_passenger; i++){
 
         rc = pthread_join(passenger[i], NULL);
@@ -268,6 +267,7 @@ int main(int argc, char* argv[]){
         }
     }
 
+    // master thread waiting for driver thread
     rc = pthread_join(driver_thread, NULL);
 
     if(rc){
